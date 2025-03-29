@@ -1,0 +1,1 @@
+K-9 Rocket Thrust Vector Control Gimbal V8 by CanineRocketTechnologies on Thingiverse: https://www.thingiverse.com/thing:3657663

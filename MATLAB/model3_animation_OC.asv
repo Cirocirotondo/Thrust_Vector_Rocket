@@ -1,0 +1,118 @@
+% Animation to display the results of the Optimal Control (OC).
+% Extract simulation data
+
+
+%---OPTIMAL CONTROLLER - data from MATLAB simulation
+% which_controller = "OC_MATLAB";
+% time = ySim(:, 1);   % Time vector
+% x = ySim(:, 2);      % x position (output(1))
+% y = ySim(:, 3);      % y position (output(2))
+% theta = ySim(:, 4);  % Orientation angle (output(3))
+%---OPTIMAL CONTROLLER - data from SIMULINK
+% which_controller = "OC_SIMULINK";
+% time = ySim(:, 1);   % Time vector
+% x = out.simout1.Data(:, 1);      % x position (output(1))
+% y = out.simout1.Data(:, 2);      % y position (output(2))
+% theta = out.simout1.Data(:, 3);  % Orientation angle (output(3))
+%---MPC
+which_controller = "MPC";
+time = out.MPCsim.Time;         % Time vector
+x = out.MPCsim.Data(:, 1);      % x position (output(1))
+y = out.MPCsim.Data(:, 2);      % y position (output(2))
+theta = out.MPCsim.Data(:, 3);  % Orientation angle (output(3))
+uMPC = out.MPCsim.Data(:,4);    % 
+
+    % % Define rocket shape (triangle)
+    % rocket_length = 0.5; % Length of the rocket
+    % rocket_width = 0.2;  % Width of the rocket
+    % rocket_shape = [-rocket_width/2, -rocket_length/2;
+    %                 0, rocket_length/2;
+    %                 rocket_width/2, -rocket_length/2];
+% Define rocket shape: rectangle with a triangle on top
+rocket_length = 0.5; % Total length of the rocket (body + triangle)
+body_length = 0.35;  % Length of the rectangular body
+body_width = 0.15;   % Width of the rectangular body
+triangle_height = rocket_length - body_length; % Height of the triangle
+% Define the shape (vertices) of the rocket:
+% Rectangle (body) + Triangle (tip)
+rocket_shape = [
+    -body_width/2, -body_length/2;  % Bottom-left of the body
+    -body_width/2, body_length/2;   % Top-left of the body
+    0, body_length/2 + triangle_height; % Tip of the triangle
+    body_width/2, body_length/2;    % Top-right of the body
+    body_width/2, -body_length/2;   % Bottom-right of the body
+];
+
+% Define target position
+target_x = xf(1); % Target x-coordinate
+target_y = xf(3); % Target y-coordinate
+
+% Set up figure
+figure('Position', [100, 100, 1000, 800]); % Large figure window
+hold on;
+axis equal;
+grid on;
+xlabel('X (m)');
+ylabel('Y (m)');
+xlim([min(x)-1, max(x)+1]);
+ylim([min(y)-1, max(y)+1]);
+
+% Plot the target position
+plot(target_x, target_y, 'bx', 'MarkerSize', 10, 'LineWidth', 2); % Blue "x" for target
+
+% Initialize the rocket plot
+% rocket_plot = fill(0, 0, 'r'); % Red triangle for the rocket
+rocket_plot = fill(rocket_shape(:, 1), rocket_shape(:, 2), 'r'); % Red rocket (rectangle + triangle)
+
+% Define thrust line length
+thrust_line_length = 0.3; % Length of the thrust direction line
+% Initialize thrust direction line
+thrust_line = plot([0, 0], [0, 0], 'b', 'LineWidth', 2); % Blue line for thrust direction
+
+% Initialize video writer
+video = VideoWriter('rocket_animation.avi'); % Video file
+video.FrameRate = 1 / Ts; % Set frame rate based on sampling time
+open(video);
+
+% Initialize the trajectory line
+trajectory_plot = plot(x(1), y(1), 'b--'); % Dashed blue line for trajectory
+
+% Animation loop
+for i = 1:length(time)
+    fprintf("Time: %f\r", Ts*i)
+    % Update rocket position and orientation
+    R = [cos(theta(i)), -sin(theta(i)); sin(theta(i)), cos(theta(i))]; % Rotation matrix
+    transformed_rocket = (R * rocket_shape')';                        % Rotate rocket
+    transformed_rocket(:, 1) = transformed_rocket(:, 1) + x(i);       % Translate in x
+    transformed_rocket(:, 2) = transformed_rocket(:, 2) + y(i);       % Translate in y
+
+    % Update rocket plot
+    set(rocket_plot, 'XData', transformed_rocket(:, 1), ...
+                     'YData', transformed_rocket(:, 2));
+    
+    % Update trajectory line
+    set(trajectory_plot, 'XData', x(1:i), 'YData', y(1:i));
+
+     % Calculate thrust direction
+    thrust_angle = theta(i) + uSim(i, 3); % Thrust angle relative to the rocket
+    thrust_vector = thrust_line_length * [sin(thrust_angle), -cos(thrust_angle)];
+    thrust_start = [(transformed_rocket(1,1)+transformed_rocket(end,1))/2, (transformed_rocket(1,2)+transformed_rocket(end,2))/2];                              % Starting point of thrust line
+    thrust_end = thrust_start + thrust_vector;                % Ending point of thrust line
+
+    % Update thrust direction line
+    set(thrust_line, 'XData', [thrust_start(1), thrust_end(1)], ...
+                     'YData', [thrust_start(2), thrust_end(2)]);
+
+
+    % Capture frame
+    frame = getframe(gcf);
+    writeVideo(video, frame);
+
+    % Pause for animation (optional)
+    pause(Ts*5);
+end
+
+% Close video writer
+close(video);
+
+disp('Animation complete! Saved as rocket_animation.avi');
